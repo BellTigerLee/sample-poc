@@ -1,0 +1,33 @@
+nameOverride: ""
+fullnameOverride: ""
+
+# Image inventory. Keys must match images/<name>/Dockerfile.
+# repository/tag are child-owned; digest/sourceRevision are injected by the
+# Federation promotion (releases/<child>/values.yaml).
+images:
+  app:
+    repository: 10.34.25.18/tower-ci/sample-poc/app
+    tag: v0.1.0
+    pullPolicy: IfNotPresent
+
+app:
+  replicas: 1
+  port: 8080
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+service:
+  type: ClusterIP
+  port: 80
+
+karmada:
+  enabled: true
+  placement:
+    # Target member cluster. Default here for a self-contained first test; in a
+    # multi-tenant setup this is supplied by Federation runtime-values.yaml.
+    cluster: c

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scalex.io/schemas/child-values/v1",
+  "title": "ScaleX child chart values - platform contract",
+  "description": "Federation이 소유하는 values subtree만 검증한다. child 고유 values는 검증하지 않는다. 정본은 scalex-federation/docs/child-values-schema.md 이며, child는 이 내용을 chart/values.schema.json으로 복사한다.",
+
+  "type": "object",
+  "additionalProperties": true,
+
+  "properties": {
+    "images": {
+      "description": "이미지 인벤토리. key는 images/<name>/Dockerfile의 <name>과 같아야 한다. repository/tag는 child가, digest/sourceRevision은 Federation promotion이 주입한다.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repository", "tag", "pullPolicy"],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._/-]+$"
+          },
+          "tag": {
+            "description": "OCI tag. semver 강제는 Tekton child-buildkit-build-push Task가 한다. 두 곳에서 강제하면 규칙이 드리프트하고, Federation generated values가 sha-<40hex> 태그를 쓰는 경우 렌더가 깨진다.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$"
+          },
+          "pullPolicy": {
+            "enum": ["Always", "IfNotPresent"]
+          },
+          "digest": {
+            "description": "Federation promotion이 주입한다. child 기본값에는 없다.",
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "sourceRevision": {
+            "description": "Federation promotion이 주입한다. 40자 소문자 Git SHA.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          }
+        }
+      }
+    },
+
+    "karmada": {
+      "description": "Karmada policy 토글. Federation values에서는 반드시 enabled=true여야 한다. policy가 실제로 렌더되는지는 스키마가 아니라 렌더 결과 검증이 확인한다.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    }
+  }
+}

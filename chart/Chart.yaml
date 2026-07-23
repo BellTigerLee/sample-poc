@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sample-poc
+description: ScaleX Federation child - identity beacon on a Karmada member cluster
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

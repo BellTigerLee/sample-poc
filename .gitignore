@@ -1,0 +1,15 @@
+# Agent / assistant tooling state (Claude Code, oh-my-claudecode, codex, etc.)
+.claude/
+.omc/
+.omo/
+.codex/
+.cursor/
+.aider*
+AGENTS.local.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/

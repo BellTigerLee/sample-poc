@@ -116,9 +116,17 @@ def _svg_line_chart(title: str, series: dict[str, list[JsonObject]], now: float)
     plot_w = CHART_W - PAD_L - PAD_R
     plot_h = CHART_H - PAD_T - PAD_B
 
+    # Ceiling = highest sample across both series + 10 headroom, capped at 100.
+    all_values = [
+        float(sample["value"])
+        for site in CHART_SITES
+        for sample in (series.get(site) or [])
+    ]
+    ceiling = min(100.0, max(all_values) + 10.0) if all_values else 100.0
+
     def py(value: float) -> float:
-        value = max(0.0, min(100.0, value))
-        return PAD_T + plot_h * (1.0 - value / 100.0)
+        value = max(0.0, min(ceiling, value))
+        return PAD_T + plot_h * (1.0 - value / ceiling)
 
     def px(index: int, count: int) -> float:
         if count <= 1:
@@ -126,7 +134,8 @@ def _svg_line_chart(title: str, series: dict[str, list[JsonObject]], now: float)
         return PAD_L + plot_w * index / (count - 1)
 
     parts: list[str] = []
-    for gridline in (0, 25, 50, 75, 100):
+    for fraction in (0.0, 0.25, 0.5, 0.75, 1.0):
+        gridline = ceiling * fraction
         gy = py(gridline)
         parts.append(
             f'<line class="grid" x1="{PAD_L}" y1="{gy:.1f}" '
@@ -134,7 +143,7 @@ def _svg_line_chart(title: str, series: dict[str, list[JsonObject]], now: float)
         )
         parts.append(
             f'<text class="axis" x="{PAD_L - 7}" y="{gy + 3.5:.1f}" '
-            f'text-anchor="end">{gridline}</text>'
+            f'text-anchor="end">{gridline:.0f}</text>'
         )
 
     drew_any = False

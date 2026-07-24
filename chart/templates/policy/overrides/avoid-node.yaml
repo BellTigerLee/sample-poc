@@ -1,14 +1,14 @@
 {{- if and .Values.karmada.enabled .Values.karmada.avoidNodes }}
 {{- /*
 Keep sample-poc pods off specific member-cluster nodes. This is a per-fleet
-placement fact (which node in which member), so the node list comes from the
-Federation runtime-values.yaml, not the child chart defaults. The OverridePolicy
-injects a required nodeAffinity on the c-copy (or whichever cluster is named)
-only; the child's base Deployments carry no cluster-specific affinity.
+placement fact (which node in which member), so the node list comes from values
+(karmada.avoidNodes), not from any pod template. The OverridePolicy injects a
+required nodeAffinity on the targeted cluster's copy only; the base Deployments
+carry no cluster-specific affinity.
 
-resourceSelector is by label so it covers every workload that can land on the
-target cluster; a rule that targets a cluster a workload never reaches is a
-no-op, so store (b-only) is unaffected.
+resourceSelectors reference each workload by name (the render-contract validator
+resolves selectors by name, not labelSelector). A rule that targets a cluster a
+workload never reaches is a no-op, so naming the b-only store here is harmless.
 */}}
 apiVersion: policy.karmada.io/v1alpha1
 kind: OverridePolicy
@@ -21,10 +21,16 @@ spec:
   resourceSelectors:
     - apiVersion: apps/v1
       kind: Deployment
+      name: {{ include "sample-poc.fullname" . }}-metrics-collector
       namespace: {{ .Release.Namespace }}
-      labelSelector:
-        matchLabels:
-          app.kubernetes.io/part-of: sample-poc
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: {{ include "sample-poc.fullname" . }}-stats-analyzer
+      namespace: {{ .Release.Namespace }}
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: {{ include "sample-poc.fullname" . }}-ring-store
+      namespace: {{ .Release.Namespace }}
   overrideRules:
     {{- range .Values.karmada.avoidNodes }}
     - targetCluster:

@@ -7,15 +7,15 @@ fullnameOverride: ""
 images:
   metrics-collector:
     repository: 10.34.25.18/tower-ci/sample-poc/metrics-collector
-    tag: v0.2.0
+    tag: v0.2.1
     pullPolicy: IfNotPresent
   stats-analyzer:
     repository: 10.34.25.18/tower-ci/sample-poc/stats-analyzer
-    tag: v0.2.0
+    tag: v0.2.1
     pullPolicy: IfNotPresent
   ring-store:
     repository: 10.34.25.18/tower-ci/sample-poc/ring-store
-    tag: v0.2.0
+    tag: v0.2.1
     pullPolicy: IfNotPresent
 
 collector:

@@ -1,0 +1,49 @@
+{{- if and .Values.karmada.enabled .Values.karmada.avoidNodes }}
+{{- /*
+Keep sample-poc pods off specific member-cluster nodes. This is a per-fleet
+placement fact (which node in which member), so the node list comes from the
+Federation runtime-values.yaml, not the child chart defaults. The OverridePolicy
+injects a required nodeAffinity on the c-copy (or whichever cluster is named)
+only; the child's base Deployments carry no cluster-specific affinity.
+
+resourceSelector is by label so it covers every workload that can land on the
+target cluster; a rule that targets a cluster a workload never reaches is a
+no-op, so store (b-only) is unaffected.
+*/}}
+apiVersion: policy.karmada.io/v1alpha1
+kind: OverridePolicy
+metadata:
+  name: {{ include "sample-poc.fullname" . }}-avoid-node
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sample-poc.labels" . | nindent 4 }}
+spec:
+  resourceSelectors:
+    - apiVersion: apps/v1
+      kind: Deployment
+      namespace: {{ .Release.Namespace }}
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/part-of: sample-poc
+  overrideRules:
+    {{- range .Values.karmada.avoidNodes }}
+    - targetCluster:
+        clusterNames:
+          - {{ .cluster | quote }}
+      overriders:
+        plaintext:
+          - path: /spec/template/spec/affinity
+            operator: add
+            value:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/hostname
+                          operator: NotIn
+                          values:
+                            {{- range .hostnames }}
+                            - {{ . | quote }}
+                            {{- end }}
+    {{- end }}
+{{- end }}

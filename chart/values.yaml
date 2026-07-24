@@ -68,3 +68,8 @@ karmada:
     store:
       clusterNames:
         - b
+  # Keep pods off specific member-cluster nodes. Empty by default (renders no
+  # OverridePolicy); the Federation runtime-values.yaml supplies the per-fleet
+  # node list, since which node in which member is a fleet fact, not a child
+  # default. Each entry: {cluster: <member>, hostnames: [<kubernetes.io/hostname>, ...]}.
+  avoidNodes: []

@@ -101,12 +101,101 @@ def parse_summary(document: JsonValue) -> JsonObject:
     return {"generatedAt": float(generated_at), "summaries": summaries}
 
 
+CHART_W: Final = 720
+CHART_H: Final = 240
+PAD_L: Final = 40
+PAD_R: Final = 56
+PAD_T: Final = 16
+PAD_B: Final = 28
+SITE_CLASS: Final = {"b": "s-b", "c": "s-c"}
+CHART_SITES: Final = ("b", "c")
+
+
+def _svg_line_chart(title: str, series: dict[str, list[JsonObject]], now: float) -> str:
+    """Server-rendered inline SVG line chart, 0-100%, one line per site."""
+    plot_w = CHART_W - PAD_L - PAD_R
+    plot_h = CHART_H - PAD_T - PAD_B
+
+    def py(value: float) -> float:
+        value = max(0.0, min(100.0, value))
+        return PAD_T + plot_h * (1.0 - value / 100.0)
+
+    def px(index: int, count: int) -> float:
+        if count <= 1:
+            return PAD_L
+        return PAD_L + plot_w * index / (count - 1)
+
+    parts: list[str] = []
+    for gridline in (0, 25, 50, 75, 100):
+        gy = py(gridline)
+        parts.append(
+            f'<line class="grid" x1="{PAD_L}" y1="{gy:.1f}" '
+            f'x2="{PAD_L + plot_w:.1f}" y2="{gy:.1f}"/>'
+        )
+        parts.append(
+            f'<text class="axis" x="{PAD_L - 7}" y="{gy + 3.5:.1f}" '
+            f'text-anchor="end">{gridline}</text>'
+        )
+
+    drew_any = False
+    for site in CHART_SITES:
+        samples = series.get(site) or []
+        if not samples:
+            continue
+        drew_any = True
+        css = SITE_CLASS[site]
+        count = len(samples)
+        points: list[str] = []
+        marks: list[str] = []
+        for index, sample in enumerate(samples):
+            value = float(sample["value"])
+            x = px(index, count)
+            y = py(value)
+            points.append(f"{x:.1f},{y:.1f}")
+            ago = max(0, int(now - float(sample["ts"])))
+            marks.append(
+                f'<circle class="hit" cx="{x:.1f}" cy="{y:.1f}" r="7">'
+                f"<title>{html.escape(site)} · {value:.2f}% · {ago}s ago</title>"
+                "</circle>"
+                f'<circle class="dot {css}" cx="{x:.1f}" cy="{y:.1f}" r="2.2"/>'
+            )
+        parts.append(f'<polyline class="line {css}" points="{" ".join(points)}"/>')
+        parts.extend(marks)
+        last = samples[-1]
+        lx = px(count - 1, count)
+        ly = py(float(last["value"]))
+        parts.append(
+            f'<text class="endlab" x="{lx + 8:.1f}" y="{ly + 3.5:.1f}">'
+            f'{site} {float(last["value"]):.0f}%</text>'
+        )
+
+    if not drew_any:
+        parts.append(
+            f'<text class="axis" x="{CHART_W / 2:.0f}" y="{CHART_H / 2:.0f}" '
+            'text-anchor="middle">waiting for samples</text>'
+        )
+
+    legend = "".join(
+        f'<span class="lg"><span class="sw {SITE_CLASS[s]}"></span>{s}</span>'
+        for s in CHART_SITES
+    )
+    return (
+        '<figure class="chart-card">'
+        f"<figcaption>{html.escape(title)}"
+        f'<span class="legend">{legend}</span></figcaption>'
+        f'<svg viewBox="0 0 {CHART_W} {CHART_H}" class="chart" '
+        f'role="img" aria-label="{html.escape(title)} over time for b and c">'
+        f'{"".join(parts)}</svg></figure>'
+    )
+
+
 def render_dashboard(store: Store) -> str:
     buffers = store.buffers_document()["buffers"]
     summary = store.summary_document().get("summaries", [])
     now = time.time()
     buffer_rows: list[str] = []
     site_last_seen: dict[str, float] = {}
+    by_key: dict[tuple[str, str], list[JsonObject]] = {}
     if isinstance(buffers, list):
         for buffer in buffers:
             if not isinstance(buffer, dict):
@@ -116,6 +205,7 @@ def render_dashboard(store: Store) -> str:
             samples = buffer["samples"]
             if not isinstance(samples, list):
                 continue
+            by_key[(site, category)] = samples
             latest = samples[-1] if samples else None
             latest_value = "-"
             if isinstance(latest, dict):
@@ -132,6 +222,14 @@ def render_dashboard(store: Store) -> str:
                 f"<td>{latest_value}</td>"
                 "</tr>"
             )
+    charts_html = "".join(
+        _svg_line_chart(
+            title,
+            {site: by_key.get((site, category), []) for site in CHART_SITES},
+            now,
+        )
+        for category, title in (("cpu", "CPU %"), ("mem", "Memory %"))
+    )
     stale_rows = [
         "<li>"
         f"<strong>{html.escape(site)}</strong>"
@@ -162,10 +260,30 @@ def render_dashboard(store: Store) -> str:
 <title>ScaleX multicluster metrics</title>
 <style>
 :root {{ color-scheme: light dark; --bg:#f4f7f6; --surface:#ffffff; --text:#17211e;
-  --muted:#596b65; --line:#ced9d5; --accent:#087f5b; --radius:12px; --space:16px; }}
+  --muted:#596b65; --line:#ced9d5; --accent:#087f5b; --radius:12px; --space:16px;
+  --series-b:#1c7ed6; --series-c:#e8590c; }}
 @media (prefers-color-scheme:dark) {{ :root {{ --bg:#111816; --surface:#18221f;
-  --text:#edf5f2; --muted:#a9bbb4; --line:#33463f; --accent:#63e6be; }} }}
+  --text:#edf5f2; --muted:#a9bbb4; --line:#33463f; --accent:#63e6be;
+  --series-b:#228be6; --series-c:#e8590c; }} }}
 * {{ box-sizing:border-box; }}
+.charts {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(32rem,100%),1fr));
+  gap:var(--space); margin-block-end:var(--space); }}
+.chart-card {{ margin:0; padding:var(--space); border:1px solid var(--line);
+  border-radius:var(--radius); background:var(--surface); min-inline-size:0; }}
+figcaption {{ display:flex; justify-content:space-between; align-items:center;
+  gap:12px; font-size:14px; font-weight:600; margin-block-end:8px; }}
+.legend {{ display:flex; gap:14px; font-weight:400; color:var(--muted); }}
+.lg {{ display:inline-flex; align-items:center; gap:6px; }}
+.sw {{ inline-size:11px; block-size:11px; border-radius:3px; background:var(--c); }}
+.chart {{ inline-size:100%; block-size:auto; }}
+.s-b {{ --c:var(--series-b); }}
+.s-c {{ --c:var(--series-c); }}
+.line {{ fill:none; stroke:var(--c); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }}
+.dot {{ fill:var(--c); }}
+.hit {{ fill:transparent; }}
+.grid {{ stroke:var(--line); stroke-width:1; }}
+.axis {{ fill:var(--muted); font-size:10px; }}
+.endlab {{ fill:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }}
 body {{ margin:0; background:var(--bg); color:var(--text);
   font:15px/1.5 ui-sans-serif,system-ui,sans-serif; }}
 main {{ inline-size:min(1120px,100%); margin-inline:auto; padding:clamp(20px,4vw,48px); }}
@@ -191,6 +309,7 @@ th {{ color:var(--muted); font-size:12px; text-transform:uppercase; letter-spaci
 <body><main>
 <header><h1>Multicluster metrics</h1><p>Recent node samples from b and c, retained in bounded memory.</p></header>
 <ul class="sites">{''.join(stale_rows) or '<li class="empty">Waiting for samples</li>'}</ul>
+<div class="charts">{charts_html}</div>
 <div class="grid">
 <section><h2>Ring buffers</h2><table><thead><tr><th>Site</th><th>Metric</th>
 <th>Samples</th><th>Latest</th></tr></thead><tbody>{''.join(buffer_rows)}</tbody></table>

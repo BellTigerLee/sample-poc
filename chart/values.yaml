@@ -72,4 +72,7 @@ karmada:
   # OverridePolicy); the Federation runtime-values.yaml supplies the per-fleet
   # node list, since which node in which member is a fleet fact, not a child
   # default. Each entry: {cluster: <member>, hostnames: [<kubernetes.io/hostname>, ...]}.
-  avoidNodes: []
+  avoidNodes:
+    - cluster: c
+      hostnames:
+        - d4dc6606-bfde-11d3-8000-4cbb472a16ef

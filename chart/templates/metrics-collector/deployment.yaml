@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sample-poc.fullname" . }}-metrics-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sample-poc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics-collector
+    scalex.io/role: child
+spec:
+  replicas: {{ .Values.collector.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sample-poc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metrics-collector
+  template:
+    metadata:
+      labels:
+        {{- include "sample-poc.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: metrics-collector
+        scalex.io/role: child
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: metrics-collector
+          image: {{ include "sample-poc.image" (index .Values.images "metrics-collector") | quote }}
+          imagePullPolicy: {{ (index .Values.images "metrics-collector").pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.collector.port }}
+          env:
+            - name: STORE_URL
+              value: {{ printf "http://%s" .Values.store.service.loadBalancerIP | quote }}
+            - name: COLLECT_INTERVAL
+              value: {{ .Values.collector.intervalSeconds | quote }}
+            - name: SITE_NAME
+              value: unknown
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.collector.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

@@ -1,0 +1,27 @@
+{{- if .Values.karmada.enabled }}
+apiVersion: policy.karmada.io/v1alpha1
+kind: PropagationPolicy
+metadata:
+  name: {{ include "sample-poc.fullname" . }}-metrics-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sample-poc.labels" . | nindent 4 }}
+spec:
+  conflictResolution: Abort
+  preemption: Never
+  propagateDeps: true
+  resourceSelectors:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: {{ include "sample-poc.fullname" . }}-metrics-collector
+      namespace: {{ .Release.Namespace }}
+  placement:
+    clusterAffinity:
+      labelSelector:
+        matchLabels:
+          scalex.io/role: child
+    spreadConstraints:
+      - spreadByField: cluster
+        minGroups: 2
+        maxGroups: 2
+{{- end }}

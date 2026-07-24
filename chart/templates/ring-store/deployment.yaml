@@ -1,19 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "sample-poc.fullname" . }}
+  name: {{ include "sample-poc.fullname" . }}-ring-store
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "sample-poc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ring-store
 spec:
-  replicas: {{ .Values.app.replicas }}
+  replicas: {{ .Values.store.replicas }}
   selector:
     matchLabels:
       {{- include "sample-poc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ring-store
   template:
     metadata:
       labels:
         {{- include "sample-poc.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ring-store
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -22,21 +25,15 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: app
-          image: {{ include "sample-poc.image" (index .Values.images "app") | quote }}
-          imagePullPolicy: {{ (index .Values.images "app").pullPolicy }}
+        - name: ring-store
+          image: {{ include "sample-poc.image" (index .Values.images "ring-store") | quote }}
+          imagePullPolicy: {{ (index .Values.images "ring-store").pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.app.port }}
+              containerPort: {{ .Values.store.port }}
           env:
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
+            - name: BUFFER_SIZE
+              value: {{ .Values.collector.bufferSize | quote }}
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
           readinessProbe:
@@ -48,7 +45,7 @@ spec:
               path: /healthz
               port: http
           resources:
-            {{- toYaml .Values.app.resources | nindent 12 }}
+            {{- toYaml .Values.store.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

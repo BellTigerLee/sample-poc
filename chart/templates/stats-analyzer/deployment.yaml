@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sample-poc.fullname" . }}-stats-analyzer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sample-poc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: stats-analyzer
+spec:
+  replicas: {{ .Values.analyzer.replicas }}
+  selector:
+    matchLabels:
+      {{- include "sample-poc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: stats-analyzer
+  template:
+    metadata:
+      labels:
+        {{- include "sample-poc.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: stats-analyzer
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: stats-analyzer
+          image: {{ include "sample-poc.image" (index .Values.images "stats-analyzer") | quote }}
+          imagePullPolicy: {{ (index .Values.images "stats-analyzer").pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.analyzer.port }}
+          env:
+            - name: STORE_URL
+              value: {{ printf "http://%s" .Values.store.service.loadBalancerIP | quote }}
+            - name: ANALYZE_INTERVAL
+              value: {{ .Values.analyzer.intervalSeconds | quote }}
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.analyzer.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

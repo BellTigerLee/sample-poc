@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sample-poc.fullname" . }}-ring-store
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sample-poc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ring-store
+  annotations:
+    lbipam.cilium.io/ips: {{ .Values.store.service.loadBalancerIP | quote }}
+spec:
+  type: {{ .Values.store.service.type }}
+  selector:
+    {{- include "sample-poc.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ring-store
+  ports:
+    - name: http
+      port: {{ .Values.store.service.port }}
+      targetPort: {{ .Values.store.service.targetPort }}
